@@ -17,7 +17,10 @@ git clone https://github.com/sh1luo/BiliDanmu_go.git
 ## Usage
 
 ```sh
-go run main.go
+go mod tidy
+go build .
+# start with command line arguments
+./biliDanMu -RoomID 114514 -PostURL http://localhost:8080 -DanMuRouterPath dm -GiftRouterPath gift -MiddlewareMode true
 ```
 
 ## Feature

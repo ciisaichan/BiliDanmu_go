@@ -1,14 +1,5 @@
 package models
 
-import (
-	"bytes"
-	"encoding/binary"
-	"fmt"
-	"github.com/gorilla/websocket"
-	"log"
-	"time"
-)
-
 type DanMuMsg struct {
 	UID        uint32 `json:"uid"`
 	Uname      string `json:"uname"`
@@ -62,97 +53,23 @@ var (
 	CMDRoomRealTimeMessageUpdate CMD = "ROOM_REAL_TIME_MESSAGE_UPDATE" // 房间关注数变动
 )
 
-func (c *Client) SendPackage(packetlen uint32, magic uint16, ver uint16, typeID uint32, param uint32, data []byte) (err error) {
-	packetHead := new(bytes.Buffer)
-
-	if packetlen == 0 {
-		packetlen = uint32(len(data) + 16)
+func (d *DanMuMsg) GetDanmuMsg(source []byte) {
+	d.UID = Json.Get(source, "info", 2, 0).ToUint32()
+	d.Uname = Json.Get(source, "info", 2, 1).ToString()
+	d.Ulevel = Json.Get(source, "info", 4, 0).ToUint32()
+	d.Text = Json.Get(source, "info", 1).ToString()
+	d.MedalName = Json.Get(source, "info", 3, 1).ToString()
+	if d.MedalName == "" {
+		d.MedalName = "无勋章"
 	}
-	var pdata = []interface{}{
-		packetlen,
-		magic,
-		ver,
-		typeID,
-		param,
-	}
-
-	// 将包的头部信息以大端序方式写入字节数组
-	for _, v := range pdata {
-		if err = binary.Write(packetHead, binary.BigEndian, v); err != nil {
-			fmt.Println("binary.Write err: ", err)
-			return
-		}
-	}
-
-	// 将包内数据部分追加到数据包内
-	sendData := append(packetHead.Bytes(), data...)
-
-	// fmt.Println("本次发包消息为：", sendData)
-
-	if err = c.conn.WriteMessage(websocket.BinaryMessage, sendData); err != nil {
-		fmt.Println("c.conn.Write err: ", err)
-		return
-	}
-
+	d.MedalLevel = Json.Get(source, "info", 3, 0).ToUint32()
 	return
 }
 
-func (c *Client) ReceiveMsg() {
-	pool := NewPool()
-	go pool.Handle()
-	for {
-		_, msg, err := c.conn.ReadMessage()
-		if err != nil {
-			log.Println("ReadMsg err :", err)
-			continue
-		}
-
-		switch msg[11] {
-		case 8:
-			fmt.Println("握手包收发完毕，连接成功")
-			c.Connected = true
-		case 3:
-			onlineNow := ByteArrToDecimal(msg[16:])
-			if uint32(onlineNow) != c.Room.Online {
-				c.Room.Online = uint32(onlineNow)
-				fmt.Println("当前房间人气变动：", uint32(onlineNow))
-			}
-		case 5:
-			if inflated, err := ZlibInflate(msg[16:]); err != nil {
-				// 代表是未压缩数据
-				pool.MsgUncompressed <- msg[16:]
-			} else {
-				for len(inflated) > 0 {
-					l := ByteArrToDecimal(inflated[:4])
-					c := json.Get(inflated[16:l], "cmd").ToString()
-					switch CMD(c) {
-					case CMDDanmuMsg:
-						pool.UserMsg <- inflated[16:l]
-					case CMDSendGift:
-						pool.UserGift <- inflated[16:l]
-					case CMDWELCOME:
-						pool.UserGift <- inflated[16:l]
-					case CMDWelcomeGuard:
-						pool.UserGuard <- inflated[16:l]
-					case CMDEntry:
-						pool.UserEntry <- inflated[16:l]
-					}
-					inflated = inflated[l:]
-				}
-			}
-		}
-	}
-}
-
-func (c *Client) HeartBeat() {
-	for {
-		if c.Connected {
-			obj := []byte("5b6f626a656374204f626a6563745d")
-			if err := c.SendPackage(31, 16, 1, 2, 1, obj); err != nil {
-				log.Println("heart beat err: ", err)
-				continue
-			}
-			time.Sleep(30 * time.Second)
-		}
-	}
+func (g *Gift) GetGiftMsg(source []byte) {
+	g.UUname = Json.Get(source, "data", "uname").ToString()
+	g.Action = Json.Get(source, "data", "action").ToString()
+	nums := Json.Get(source, "data", "num").ToUint32()
+	g.Price = Json.Get(source, "data", "price").ToUint32() * nums
+	g.GiftName = Json.Get(source, "data", "giftName").ToString()
 }
