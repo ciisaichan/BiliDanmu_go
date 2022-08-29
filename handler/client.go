@@ -93,8 +93,8 @@ func (c *Client) Start() (err error) {
 		fmt.Println("SendPackage err,", err)
 		return
 	}
-	go c.ReceiveMsg()
 	go c.HeartBeat()
+	c.ReceiveMsg()
 	return
 }
 
@@ -172,7 +172,7 @@ func (c *Client) ReceiveMsg() {
 					case models.CMDSendGift:
 						pool.UserGift <- inflated[16:l]
 					case models.CMDWELCOME:
-						pool.UserGift <- inflated[16:l]
+						pool.UserEnter <- inflated[16:l]
 					case models.CMDWelcomeGuard:
 						pool.UserGuard <- inflated[16:l]
 					case models.CMDEntry:
